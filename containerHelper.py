@@ -35,6 +35,20 @@ def display_ip(args):
     print(detail['NetworkSettings']['IPAddress'])
 
 
+def display_memory(args):
+    detail = c.inspect_container(args.container)
+    if bool(detail["State"]["Running"]):
+        container_id = detail['Id']
+        with open('/sys/fs/cgroup/memory/docker/' + container_id + '/memory.stat', 'r') as f:
+            for line in f:
+                m = re.search(r"total_rss\s+(\d+)", line)
+                if m:
+                    print(m.group(1))
+                    return
+
+    print(0)
+
+
 def display_network(args):
     detail = c.inspect_container(args.container)
     if bool(detail["State"]["Running"]):
@@ -77,6 +91,9 @@ cpu_parser.set_defaults(func=display_cpu)
 
 ip_parser = subparsers.add_parser("ip", help="Display IP Address")
 ip_parser.set_defaults(func=display_ip)
+
+memory_parser = subparsers.add_parser("memory", help="Display memory usage")
+memory_parser.set_defaults(func=display_memory)
 
 network_parser = subparsers.add_parser("network", help="Display network usage")
 network_parser.add_argument("direction", choices=["in", "out"])
