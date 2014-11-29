@@ -20,10 +20,9 @@ parser.add_argument("--log-file", help="Where to put the logs", default="/var/lo
 
 args = parser.parse_args()
 
-if args.log_file == '-':
-    logging.basicConfig(level=getattr(logging,args.log_level.upper()))
-else:
-    logging.basicConfig(level=getattr(logging,args.log_level.upper()), filename=args.log_file)
+logging.basicConfig(level=getattr(logging,args.log_level.upper()),
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                    filename=(args.log_file if args.log_file != '-' else None))
 
 if args.zone is None:
     args.zone = args.domain
@@ -52,14 +51,15 @@ while True:
         if m:
             event = m.group(2)
             container_id = m.group(1)
-            logging.info("Got event %s for container %s", event, container_id)
+            logging.debug("Got event %s for container %s", event, container_id)
 
             if event == "start":
-                logging.info("Starting %s", container_id)
                 detail = c.inspect_container(container_id)
                 container_hostname = detail["Config"]["Hostname"]
                 container_name = detail["Name"].split('/',1)[1]
                 container_ip = detail["NetworkSettings"]["IPAddress"]
+
+                logging.info("Updating %s to ip (%s|%s) -> %s", container_id, container_hostname, container_name, container_ip)
                 nsupdate = Popen(['nsupdate', '-k', args.key], stdin=PIPE)
                 nsupdate.stdin.write(bytes(zone_update_template.format(args.server, args.zone, container_hostname, args.domain, container_ip), "UTF-8"))
                 if container_name != container_hostname:
