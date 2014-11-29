@@ -1,0 +1,13 @@
+# Docker Dynamic DNS updater configuration file.
+
+# Customize updater binary
+#DOCKER_DDNS=dockerDDNS.py
+
+# Key used to update the DNS
+NSUPDATE_KEY="/etc/bind/Kcontainers.+157+42654.key"
+
+# Domain to update
+NSUPDATE_DOMAIN="containers"
+
+DOCKER_DDNS_OPTS="--key $NSUPDATE_KEY --domain $NSUPDATE_DOMAIN"
+
