@@ -68,8 +68,8 @@ while True:
                 nsupdate.stdin.close()
             elif event == "destroy":
                     logging.info("Destroying %s", container_id)
-            else:
-                logging.warning("Couldn't match RE in line %s", text_line)
+        else:
+            logging.warning("Couldn't match RE in line %s", text_line)
     else:
         print("Done return code: ", p.returncode)
         break
