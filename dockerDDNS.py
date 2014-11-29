@@ -9,6 +9,15 @@ from subprocess import Popen, PIPE
 from docker import Client
 from docker.utils import kwargs_from_env
 
+zone_update_template = """server {0}
+zone {1}.
+update delete {2}.{3}
+update add {2}.{3} 60 A {4}
+"""
+zone_update_add_alias_template = """update delete {0}.{1}
+update add {0}.{1} 600 CNAME {2}.{1}.
+"""
+
 parser = argparse.ArgumentParser()
 
 parser.add_argument("--key", required=True, help="Path to the dynamic dns key")
@@ -27,20 +36,12 @@ logging.basicConfig(level=getattr(logging,args.log_level.upper()),
 if args.zone is None:
     args.zone = args.domain
 
+logging.info("Starting with arguments %s", args)
+
 c = Client(**(kwargs_from_env()))
 
 # Too bad docker-py does not currently support docker events
 p = Popen(['docker', 'events'], stdout=PIPE)
-
-zone_update_template = """server {0}
-zone {1}.
-update delete {2}.{3}
-update add {2}.{3} 60 A {4}
-"""
-zone_update_add_alias_template = """update delete {0}.{1}
-update add {0}.{1} 600 CNAME {2}.{1}.
-"""
-
 
 while True:
     line = p.stdout.readline()
