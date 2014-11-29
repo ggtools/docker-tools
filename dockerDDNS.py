@@ -16,10 +16,14 @@ parser.add_argument("--server", help="IP/Hostname of the server to update", defa
 parser.add_argument("--domain", help="The domain to be updated", required=True)
 parser.add_argument("--zone", help="The zone to be updated (default to the domain)")
 parser.add_argument("--log-level", help="Log level to display", default="INFO")
+parser.add_argument("--log-file", help="Where to put the logs", default="/var/log/docker-ddns.log")
 
 args = parser.parse_args()
 
-logging.basicConfig(level=getattr(logging,args.log_level.upper()))
+if args.log_file == '-':
+    logging.basicConfig(level=getattr(logging,args.log_level.upper()))
+else:
+    logging.basicConfig(level=getattr(logging,args.log_level.upper()), filename=args.log_file)
 
 if args.zone is None:
     args.zone = args.domain
@@ -49,6 +53,7 @@ while True:
             event = m.group(2)
             container_id = m.group(1)
             logging.info("Got event %s for container %s", event, container_id)
+
             if event == "start":
                 logging.info("Starting %s", container_id)
                 detail = c.inspect_container(container_id)
@@ -61,10 +66,10 @@ while True:
                     nsupdate.stdin.write(bytes(zone_update_add_alias_template.format(container_name, args.domain, container_hostname), "UTF-8"))
                 nsupdate.stdin.write(bytes("send\n", "UTF-8"))
                 nsupdate.stdin.close()
-        elif event == "destroy":
-                logging.info("Destroying %s", container_id)
-        else:
-            logging.warning("Couldn't match RE in line %s", text_line)
+            elif event == "destroy":
+                    logging.info("Destroying %s", container_id)
+            else:
+                logging.warning("Couldn't match RE in line %s", text_line)
     else:
         print("Done return code: ", p.returncode)
         break
