@@ -57,7 +57,7 @@ def display_network(args):
         if m:
             print(m.group(1))
         else:
-            b = c.execute(args.container, "cat /sys/devices/virtual/net/eth0/statistics/"+("rx" if args.direction == "in" else "tx")+"_bytes")
+            b = c.execute(args.container, "cat /sys/devices/virtual/net/eth0/statistics/"+("rx" if args.direction == "in" else "tx")+"_bytes").decode()
             if re.match(r"\s*\d+\s*", b):
                 print(b)
             else:
