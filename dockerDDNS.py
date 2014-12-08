@@ -9,14 +9,36 @@ from subprocess import Popen, PIPE
 from docker import Client
 from docker.utils import kwargs_from_env
 
+# Templates for nsupdate
 zone_update_template = """server {0}
 zone {1}.
 update delete {2}.{3}
 update add {2}.{3} 60 A {4}
 """
+
 zone_update_add_alias_template = """update delete {0}.{1}
 update add {0}.{1} 600 CNAME {2}.{1}.
 """
+
+
+def register_container(container_id):
+    detail = c.inspect_container(container_id)
+    container_hostname = detail["Config"]["Hostname"]
+    container_name = detail["Name"].split('/', 1)[1]
+    container_ip = detail["NetworkSettings"]["IPAddress"]
+    logging.info("Updating %s to ip (%s|%s) -> %s", container_id, container_hostname, container_name, container_ip)
+    if not args.dry_run:
+        nsupdate = Popen(['nsupdate', '-k', args.key], stdin=PIPE)
+        nsupdate.stdin.write(
+            bytes(zone_update_template.format(args.server, args.zone, container_hostname, args.domain, container_ip),
+                  "UTF-8"))
+        if container_name != container_hostname:
+            nsupdate.stdin.write(
+                bytes(zone_update_add_alias_template.format(container_name, args.domain, container_hostname), "UTF-8"))
+        nsupdate.stdin.write(bytes("send\n", "UTF-8"))
+        nsupdate.stdin.close()
+
+
 
 parser = argparse.ArgumentParser()
 
@@ -24,6 +46,10 @@ parser.add_argument("--key", required=True, help="Path to the dynamic dns key")
 parser.add_argument("--server", help="IP/Hostname of the server to update", default="127.0.0.1")
 parser.add_argument("--domain", help="The domain to be updated", required=True)
 parser.add_argument("--zone", help="The zone to be updated (default to the domain)")
+
+parser.add_argument("--dry-run", help="Run in dry run mode without doing any update", default=False, action="store_true")
+parser.add_argument("--catchup", help="Register the running containers on startup", default=False, action="store_true")
+
 parser.add_argument("--log-level", help="Log level to display", default="INFO")
 parser.add_argument("--log-file", help="Where to put the logs", default="/var/log/docker-ddns.log")
 
@@ -40,8 +66,15 @@ logging.info("Starting with arguments %s", args)
 
 c = Client(**(kwargs_from_env()))
 
+if args.catchup:
+    logging.info("Registering existing containers")
+    containers = c.containers()
+    for container in containers:
+        register_container(container["Id"])
+
 # Too bad docker-py does not currently support docker events
 p = Popen(['docker', 'events'], stdout=PIPE)
+
 
 while True:
     line = p.stdout.readline()
@@ -55,18 +88,7 @@ while True:
             logging.debug("Got event %s for container %s", event, container_id)
 
             if event == "start":
-                detail = c.inspect_container(container_id)
-                container_hostname = detail["Config"]["Hostname"]
-                container_name = detail["Name"].split('/',1)[1]
-                container_ip = detail["NetworkSettings"]["IPAddress"]
-
-                logging.info("Updating %s to ip (%s|%s) -> %s", container_id, container_hostname, container_name, container_ip)
-                nsupdate = Popen(['nsupdate', '-k', args.key], stdin=PIPE)
-                nsupdate.stdin.write(bytes(zone_update_template.format(args.server, args.zone, container_hostname, args.domain, container_ip), "UTF-8"))
-                if container_name != container_hostname:
-                    nsupdate.stdin.write(bytes(zone_update_add_alias_template.format(container_name, args.domain, container_hostname), "UTF-8"))
-                nsupdate.stdin.write(bytes("send\n", "UTF-8"))
-                nsupdate.stdin.close()
+                register_container(container_id)
             elif event == "destroy":
                     logging.info("Destroying %s", container_id)
         else:
