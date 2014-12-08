@@ -18,6 +18,7 @@ update add {2}.{3} 60 A {4}
 
 zone_update_add_alias_template = """update delete {0}.{1}
 update add {0}.{1} 600 CNAME {2}.{1}.
+update add {2}.{1} 600 TXT dockerDDNS-alias={0}
 """
 
 
