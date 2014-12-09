@@ -5,20 +5,28 @@ __author__ = 'xtof'
 import argparse
 import re
 import logging
+import sys
 from subprocess import Popen, PIPE
 from docker import Client
 from docker.utils import kwargs_from_env
+from dns.resolver import Resolver
+from dns.exception import DNSException
 
 # Templates for nsupdate
-zone_update_template = """server {0}
+zone_update_start_template = """server {0}
 zone {1}.
-update delete {2}.{3}
-update add {2}.{3} 60 A {4}
+"""
+
+zone_update_template = """update delete {0}.{1}
+update add {0}.{1} 60 A {2}
 """
 
 zone_update_add_alias_template = """update delete {0}.{1}
 update add {0}.{1} 600 CNAME {2}.{1}.
-update add {2}.{1} 600 TXT dockerDDNS-alias={0}
+update add {2}.{1} 600 TXT dockerDDNS-alias:{0}:
+"""
+
+zone_update_delete_record_template = """update delete {0}.{1}
 """
 
 
@@ -30,15 +38,44 @@ def register_container(container_id):
     logging.info("Updating %s to ip (%s|%s) -> %s", container_id, container_hostname, container_name, container_ip)
     if not args.dry_run:
         nsupdate = Popen(['nsupdate', '-k', args.key], stdin=PIPE)
-        nsupdate.stdin.write(
-            bytes(zone_update_template.format(args.server, args.zone, container_hostname, args.domain, container_ip),
-                  "UTF-8"))
+        nsupdate.stdin.write(bytes(zone_update_start_template.format(args.server, args.zone), "UTF-8"))
+        nsupdate.stdin.write(bytes(zone_update_template.format(container_hostname, args.domain, container_ip), "UTF-8"))
         if container_name != container_hostname:
-            nsupdate.stdin.write(
-                bytes(zone_update_add_alias_template.format(container_name, args.domain, container_hostname), "UTF-8"))
+            nsupdate.stdin.write(bytes(zone_update_add_alias_template.format(container_name, args.domain, container_hostname), "UTF-8"))
         nsupdate.stdin.write(bytes("send\n", "UTF-8"))
         nsupdate.stdin.close()
 
+
+def remove_container(container_id):
+    logging.info("Destroying %s", container_id)
+    short_id = container_id[:12]
+    record_to_delete = [short_id]
+    logging.debug("Looking for alias to %s.%s", short_id, args.domain)
+
+    try:
+        answers = resolver.query("{0}.{1}.".format(short_id, args.domain), "TXT", raise_on_no_answer=False).rrset
+        if answers:
+            for answer in answers:
+                logging.debug("Checking TXT record %s for alias", answer)
+                match = re.search(r"dockerDDNS-alias:([^:]+):", answer.to_text())
+                if match:
+                    record_to_delete.append(match.group(1))
+    except DNSException as e:
+        logging.error("Cannot get TXT record for %s: %s", short_id, e)
+    except:
+        logging.error("Unexpected error: %s", sys.exc_info()[0])
+        raise
+
+    if not args.dry_run:
+        nsupdate = Popen(['nsupdate', '-k', args.key], stdin=PIPE)
+        nsupdate.stdin.write(bytes(zone_update_start_template.format(args.server, args.zone), "UTF-8"))
+
+        for record in record_to_delete:
+            logging.info("Removing record for %s", record)
+            nsupdate.stdin.write(bytes(zone_update_delete_record_template.format(record, args.domain), "UTF-8"))
+
+        nsupdate.stdin.write(bytes("send\n", "UTF-8"))
+        nsupdate.stdin.close()
 
 
 parser = argparse.ArgumentParser()
@@ -67,18 +104,21 @@ logging.info("Starting with arguments %s", args)
 
 c = Client(**(kwargs_from_env()))
 
+resolver = Resolver()
+resolver.nameservers = [args.server]
+
 if args.catchup:
     logging.info("Registering existing containers")
     containers = c.containers()
     for container in containers:
         register_container(container["Id"])
 
-# Too bad docker-py does not currently support docker events
-p = Popen(['docker', 'events'], stdout=PIPE)
 
+# Too bad docker-py does not currently support docker events
+events_pipe = Popen(['docker', 'events'], stdout=PIPE)
 
 while True:
-    line = p.stdout.readline()
+    line = events_pipe.stdout.readline()
     if line != '':
         text_line = line.decode().rstrip()
         logging.debug("Read line %s", text_line)
@@ -91,11 +131,11 @@ while True:
             if event == "start":
                 register_container(container_id)
             elif event == "destroy":
-                    logging.info("Destroying %s", container_id)
+                remove_container(container_id)
         else:
             logging.warning("Couldn't match RE in line %s", text_line)
     else:
-        print("Done return code: ", p.returncode)
+        print("Done return code: ", events_pipe.returncode)
         break
 
 # 2014-11-28T15:32:04.000000000+01:00 a3d66b00acc9adbdbdbc91cc664d2d94b6a07cc4295c5cf54fcc595e2aa92a43: (from mongo:latest) restart
