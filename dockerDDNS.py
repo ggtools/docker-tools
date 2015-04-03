@@ -132,8 +132,6 @@ while True:
                 register_container(container_id)
             elif event == "destroy":
                 remove_container(container_id)
-        else:
-            logging.warning("Couldn't match RE in line %s", text_line)
     else:
         print("Done return code: ", events_pipe.returncode)
         break
