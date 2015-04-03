@@ -137,3 +137,4 @@ while True:
         break
 
 # 2014-11-28T15:32:04.000000000+01:00 a3d66b00acc9adbdbdbc91cc664d2d94b6a07cc4295c5cf54fcc595e2aa92a43: (from mongo:latest) restart
+# 2015-03-05T08:36:14.000000000+01:00 eb75c1a5ad836d008b0fd66bf6b1ea353510175e8caa619e59d9851029b1ceca: (from ggtools/zabbix-server:latest) exec_start: ifconfig eth0
