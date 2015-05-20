@@ -13,7 +13,7 @@ Very simple shell script to count the number of containers on the docker instanc
 Print the number of containers on the Docker instance.
 
 
-## containerHelpery.py
+## containerHelper.py
 
 A script inspired from [a nice article](http://blog.docker.com/2013/10/gathering-lxc-docker-containers-metrics/) about metric. It enables you to get several metrics from a running container:
 
