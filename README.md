@@ -61,6 +61,7 @@ A daemon to update a dynamic DNS when Docker starts containers. Designed to be u
       --server SERVER       IP/Hostname of the server to update
       --domain DOMAIN       The domain to be updated
       --zone ZONE           The zone to be updated (default to the domain)
+      --catchup             Register the running containers on startup
       --log-level LOG_LEVEL
                             Log level to display
       --log-file LOG_FILE   Where to put the logs
