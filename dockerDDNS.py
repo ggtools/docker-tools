@@ -42,6 +42,10 @@ def register_container(container_id):
         nsupdate.stdin.write(bytes(zone_update_template.format(container_hostname, args.domain, container_ip), "UTF-8"))
         if container_name != container_hostname:
             nsupdate.stdin.write(bytes(zone_update_add_alias_template.format(container_name, args.domain, container_hostname), "UTF-8"))
+            if re.search("_", container_name):
+                alternate_name = re.sub('_','-',container_name)
+                logging.info("Adding alternate name %s to  %s", alternate_name, container_name)
+                nsupdate.stdin.write(bytes(zone_update_add_alias_template.format(alternate_name, args.domain, container_hostname), "UTF-8"))
         nsupdate.stdin.write(bytes("send\n", "UTF-8"))
         nsupdate.stdin.close()
 
@@ -114,7 +118,7 @@ if args.catchup:
         register_container(container["Id"])
 
 
-# Too bad docker-py does not currently support docker events
+# TODO use docker-py streaming API
 events_pipe = Popen(['docker', 'events'], stdout=PIPE)
 
 while True:
