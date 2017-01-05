@@ -34,7 +34,11 @@ def register_container(container_id):
     detail = c.inspect_container(container_id)
     container_hostname = detail["Config"]["Hostname"]
     container_name = detail["Name"].split('/', 1)[1]
-    container_ip = detail["NetworkSettings"]["IPAddress"]
+    network_mode = detail["HostConfig"]["NetworkMode"]
+    if  network_mode == "default":
+        container_ip = detail["NetworkSettings"]["IPAddress"]
+    else :
+        container_ip = detail["NetworkSettings"]["Networks"][network_mode]["IPAddress"]
     logging.info("Updating %s to ip (%s|%s) -> %s", container_id, container_hostname, container_name, container_ip)
     if not args.dry_run:
         nsupdate = Popen(['nsupdate', '-k', args.key], stdin=PIPE)
